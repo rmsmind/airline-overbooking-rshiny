@@ -1,0 +1,239 @@
+---
+title: "Project 1: Airline Overbooking Problem"
+author: "Jorge Juarez"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    number_sections: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Task 1
+
+\( Y_i \) is an independent and identically distributed (iid) Bernoulli random variable representing whether a person with a ticket shows up for the flight:
+
+\[
+Y_i \overset{\text{iid}}{\sim} \text{Ber}(p)
+\]
+
+\[
+Y_i =
+\begin{cases} 
+1, & \text{if the person shows up} \\ 
+0, & \text{if the person does not show up}
+\end{cases}
+\]
+
+\( p \) is the probability that a ticketed passenger shows up:
+
+\[
+P(Y_i = 1) = p.
+\]
+
+\( S \) is the total number of ticketed passengers who show up for the flight:
+
+\[
+S = Y_1 + Y_2 + \dots + Y_n
+\]
+
+Therefore, \( S \) follows a Binomial distribution, where \( n \) is the total number of tickets sold and \( p \) is the probability that a ticketed passenger shows up:
+
+\[
+S \sim \text{Bin}(n, p)
+\]
+
+\(\gamma\) is the probability that a flight is overbooked, where \( N \) is the number of available seats:
+
+\[
+\gamma = P(S > N)
+\]
+
+## Task 2
+By rearranging the probability equation: 
+
+\[
+1 - \gamma = P(S \leq N) = \text{pbinom}(N, n, p)
+\]
+
+The objective function \( f(n) \) is defined:
+
+\[
+f(n) = 1 - \gamma - \text{pbinom}(N, n, p) = 0
+\]
+
+The objective function \( f(n) \) helps determine the optimal \( n \) number of tickers that should be sold, while maintaining a desired probability of overbooking. The goal is to find the root of \( f(n) \) that corresponds to the optimal \( n \).
+
+## Task 3
+```{r}
+# Airline overbooking problem parameters
+N <- 200      # Number of seats on the flight
+p <- 0.95     # Probability that a ticket holder shows up
+gamma <- 0.20 # Probability of overbooking
+
+# Range of possible ticket sales (n values)
+nposs <- seq(N, N + 20, by = 1) 
+
+# Compute objective function f(n)
+fn_values <- 1 - gamma - pbinom(N, size = nposs, prob = p)
+
+# Find the optimal n where f(n) is minimized (root of f(n)) - index
+n_optimal <- nposs[which.min(abs(fn_values))]
+
+# Print result
+print(n_optimal)
+
+# Plot: Objective function (Discrete)
+plot(nposs, fn_values, type = "p", pch = 16, col = "blue",
+     xlab = "n", 
+     ylab = "Objective",
+     main = paste("Objective Vs n to find optimal tickets sold \n (", n_optimal, ") gamma=", gamma, "N=", N, "discrete"))
+
+# Blue dots for f(n) >= 0 (positive values)
+points(nposs[fn_values >= 0], fn_values[fn_values >= 0], pch = 16, col = "blue")
+
+# Red dots representing |f(n)| (negative values)
+points(nposs[fn_values < 0], abs(fn_values[fn_values < 0]), pch = 16, col = "red")
+
+# Connecting lines for blue dots (positive values)
+lines(nposs, fn_values, col = "black", lty = 2)
+
+# Reference lines
+abline(h = 0, col = "red", lwd = 2)
+abline(v = n_optimal, col = "red", lwd = 2)
+```
+
+## Task 4
+\[
+\text{Normal Approximation:}
+\]
+
+\[
+\text{Mean: } \mu_n = np
+\]
+
+\[
+\text{Standard Deviation: } \sigma_n = \sqrt{np(1 - p)}
+\]
+
+\[
+\text{Variance: } \sigma_n^2 = np(1 - p)
+\]
+
+\[
+S \approx N(np, np(1 - p))
+\]
+
+
+```{r}
+# Airline overbooking problem parameters
+N <- 200      # Number of seats on the flight
+p <- 0.95     # Probability that a ticket holder shows up
+gamma <- 0.20 # Probability of overbooking
+
+# Range of possible ticket sales (n values)
+nposs <- seq(N, N + 20, by = 0.0001)  # nposs becomes continuous with 0.0001 instead of 1
+
+# Normal approximation: mean and standard deviation
+mu_n <- nposs * p # μ = np (mean)
+sigma_n <- sqrt(nposs * p * (1 - p)) # σ = sqrt(np(1-p)) (standard deviation)
+
+# Normal approximation: P(S ≤ N)
+fn_values_normal <- 1 - gamma - pnorm(N + 0.5, mean = mu_n, sd = sigma_n) # pnorm used for norm approx and N + 0.5 for endpoint correction
+
+# Find the optimal n where f(n) is minimized (root of f(n)) - index
+n_optimal_normal <- nposs[which.min(abs(fn_values_normal))]
+
+# Print result
+print(n_optimal_normal)
+
+# Plot: Normal approximation function (continuous)
+plot(nposs, fn_values_normal, type = "l", col = "black",
+     xlab = "n", 
+     ylab = "Objective",
+     main = paste("Objective Vs n to find optimal tickets sold \n (", n_optimal_normal, ") gamma=", gamma, "N=", N, "continuous"))
+
+# Reference lines
+abline(h = 0, col = "blue", lwd = 2)
+abline(v = n_optimal_normal, col = "blue", lwd = 2)
+```
+
+## Task 5
+```{r}
+library(rootSolve)
+
+# f(n) function: normal approximation of the binomial distribution (continuous)
+fn_continuous <- function(n) {
+  mu_n <- n * p # μ = np (mean)
+  sigma_n <- sqrt(n * p * (1 - p)) # σ = sqrt(np(1-p)) (standard deviation)
+  1 - gamma - pnorm(N + 0.5, mean = mu_n, sd = sigma_n) # normal approximation
+}
+
+# Use uniroot.all() to find "n"
+root_n <- uniroot.all(fn_continuous, lower = N, upper = N + 20)
+root_n
+
+# Use optimise() to find the minimum of |f(n)|
+optimise_n <- optimise(function(n) abs(fn_continuous(n)), lower = N, upper = N + 50)$minimum
+optimise_n
+```
+
+## Task 6
+```{r}
+library(rootSolve)
+
+ntickets <- function(N, gamma, p) {
+  
+  # Discrete: Binomial Distribution f(n)
+  nposs <- seq(N, N + 20, by = 1)
+  fn_values <- 1 - gamma - pbinom(N, size = nposs, prob = p)
+  n_optimal <- nposs[which.min(abs(fn_values))]
+
+  # Continuous: Normal Approximation f(n)
+  fn_continuous <- function(n) {
+    mu_n <- n * p
+    sigma_n <- sqrt(n * p * (1 - p))
+    return(1 - gamma - pnorm(N + 0.5, mean = mu_n, sd = sigma_n))
+  }
+
+  root_n <- uniroot.all(fn_continuous, lower = N, upper = N + 20)
+  optimise_n <- optimise(function(n) abs(fn_continuous(n)), lower = N, upper = N + 20)$minimum
+
+  # Plot: Discrete
+  plot(nposs, fn_values, type = "p", pch = 16, col = "blue",
+       xlab = "n", 
+       ylab = "Objective",
+       main = paste("Objective Vs n to find optimal tickets sold \n (", n_optimal, ") gamma=", gamma, "N=", N, "discrete"))
+  
+  points(nposs[fn_values >= 0], fn_values[fn_values >= 0], pch = 16, col = "blue")
+  points(nposs[fn_values < 0], abs(fn_values[fn_values < 0]), pch = 16, col = "red")
+  lines(nposs, fn_values, col = "black", lty = 2)
+  abline(h = 0, col = "red", lwd = 2)
+  abline(v = n_optimal, col = "red", lwd = 2)
+
+  # Plot: Continuous
+  nposs_continuous <- seq(N, N + 20, by = 0.1)
+  fn_values_normal <- sapply(nposs_continuous, fn_continuous)
+
+  plot(nposs_continuous, fn_values_normal, type = "l", col = "black",
+       xlab = "n", 
+       ylab = "Objective",
+       main = paste("Objective Vs n to find optimal tickets sold \n (", round(optimise_n, 4), ") gamma=", gamma, "N=", N, "continuous"))
+  
+  abline(h = 0, col = "blue", lwd = 2)
+  abline(v = optimise_n, col = "blue", lwd = 2)
+
+  # Return list of results
+  return(list(nd = n_optimal, nc = round(optimise_n, 4), N = N, p = p, gamma = gamma, root = root_n))
+}
+
+ntickets(N = 200, p = 0.95, gamma = 0.2)
+```
+
+## Task 7
+![](AirlineOverbooking.png)
+https://rmsmind.shinyapps.io/airline-overbooking/
